@@ -1,0 +1,119 @@
+---
+title: "Taylor Swift Sentiment Analysis"
+author: Tiffany Hsu
+output: html_document
+---
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)      # data manipulation & plotting
+library(stringr)        # text cleaning and regular expressions
+library(tidytext)       # provides additional text mining functions
+library(mongolite)
+library(fmsb)
+library(radarchart)
+
+
+taylorSwift = read.csv("taylor_swift_lyrics.csv", header = TRUE)
+
+List <- strsplit(as.character(taylorSwift$lyric), " ")
+taylorSwiftAlbums = data.frame(album=rep(taylorSwift$album, sapply(List, length)), lyric=unlist(List))
+```
+
+```{r warning = FALSE, message = FALSE}
+# setting up tibble 
+text_tba <- tibble(album = taylorSwiftAlbums$album,
+                    word = taylorSwiftAlbums$lyric)
+  
+```
+
+## AFINN Analysis by Album
+```{r message = FALSE, warning = FALSE}
+afinn1 <- text_tba %>%
+    group_by(album) %>% 
+    inner_join(get_sentiments("afinn")) %>%
+    group_by(album) %>%
+    summarise(sentiment = sum(score)) %>%
+    mutate(method = "AFINN")
+  
+afinnplot1 =  afinn1 %>%
+    ggplot(aes(as.factor(album), sentiment)) +
+    geom_bar(stat='identity', position='dodge', fill = "red")
+    geom_col(show.legend = FALSE) 
+    
+afinnplot1 + ggtitle("Album x AFINN Sentiment Value") +
+      xlab("Album Title") + ylab("Sentiment Total") 
+  
+```
+&nbsp;    
+AFINN analysis pairs each word to a numeric value (from -5 to +5), on how positive each word is. These words are then totalled up to reveal the overall sentiment per album. From the barplot, it can be concluded that Taylor Swift's album 'Red' had the most positive sentiment, meaning she used more positive words in her music. 
+
+## Bing Analysis by Album
+```{r warning = FALSE, message = FALSE}
+bing = text_tba %>%
+      group_by(album) %>%
+      inner_join(get_sentiments("bing")) %>% # pull out only sentiment words
+      count(sentiment) %>% # count the # of positive & negative words
+      spread(sentiment, n, fill = 0) %>% # made data wide rather than narrow
+      mutate(sentiment = positive - negative)
+    
+
+bingplot =  bing %>%
+    ggplot(aes(as.factor(album), sentiment)) +
+    geom_bar(stat='identity', position='dodge', fill = "blue")
+    geom_col(show.legend = FALSE) 
+    
+
+bingplot + ggtitle("Album Title x Bing Sentiment Value") +
+  xlab("Album Title") + ylab("Sentiment (Positive - Negative)") 
+    
+```
+&nbsp;  
+In Bing analysis, each word is assigned as negative, positive, or neutral. These number of positive words is then subtracted from the number of negative words. From the barplot, we once again see that 'Red' had the most positive sentiment.
+
+## NRC Analysis by Album
+```{r warning = FALSE, message = FALSE}
+nrc = text_tba %>%
+  group_by(album) %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0)  # made data wide rather than narrow
+    
+transpose = as_tibble(cbind(nms = names(nrc), t(nrc)))
+colnames(transpose) = transpose[1,]
+
+chartJSRadar(transpose[2:11,])
+```
+&nbsp;  
+NRC analysis assigns each lyric to a different sentiment category: sadness, surprise, trust, anger, anticipation, disgust, fear, postive, or negative. The words in each category is then totalled. From the radar chart, it can be concluded that 'Red' and 'Speak Now' had the most positive words. 
+
+## Taking a Closer Look into 'Red'
+```{r warning = FALSE, message = FALSE}
+# subsetting 'Red'
+red = taylorSwift[taylorSwift$album == 'Red',]
+List <- strsplit(as.character(red$lyric), " ")
+redSongs = data.frame(track_title=rep(red$track_title, sapply(List, length)), lyric=unlist(List))
+```
+
+```{r warning = FALSE, message = FALSE}
+red_tba <- tibble(track_title = redSongs$track_title,
+                    word = redSongs$lyric)
+
+afinnRed <- red_tba %>%
+    group_by(track_title) %>% 
+    inner_join(get_sentiments("afinn")) %>%
+    group_by(track_title) %>%
+    summarise(sentiment = mean(score)) %>%
+    mutate(method = "AFINN")
+
+redplot =  afinnRed %>%
+    ggplot(aes(as.factor(track_title), sentiment)) +
+    geom_bar(stat='identity', position='dodge', fill = "red")
+    geom_col(show.legend = FALSE) 
+    
+    
+redplot + ggtitle("Track Title x AFINN Sentiment Value") +
+      xlab("Track Title") + ylab("Sentiment Total") +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+&nbsp;
+From this plot, we can see that the clear driver of Red's lower sentiment value is definitely the song 'I Knew You Were Trouble.'
